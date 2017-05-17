@@ -31,7 +31,8 @@ import io.github.gsteckman.rpi_ina219.INA219;
 import io.github.gsteckman.rpi_ina219.INA219.Address;
 
 /**
- * This is a utility class to perform multiple reads of the current from the INA219.  
+ * This is a utility class to perform multiple reads of the current from the INA219.
+ * 
  * @author Greg Steckman
  *
  */
@@ -39,16 +40,21 @@ public class INA219Util {
     private static final Log LOG = LogFactory.getLog(INA219Util.class);
 
     /**
-     * Reads the Current from the INA219 with an I2C address and for a duration specified
-     * on the command line.
-     * @param args Command line arguments.
-     * @throws IOException If an error occurs reading/writing to the INA219
-     * @throws ParseException If the command line arguments could not be parsed.
+     * Reads the Current from the INA219 with an I2C address and for a duration specified on the command line.
+     * 
+     * @param args
+     *            Command line arguments.
+     * @throws IOException
+     *             If an error occurs reading/writing to the INA219
+     * @throws ParseException
+     *             If the command line arguments could not be parsed.
      */
     public static void main(String[] args) throws IOException, ParseException {
         Options options = new Options();
         options.addOption("addr", true, "I2C Address");
         options.addOption("d", true, "Acquisition duration, in seconds");
+        options.addOption("bv", false, "Also read bus voltage");
+        options.addOption("sv", false, "Also read shunt voltage");
 
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
@@ -77,14 +83,38 @@ public class INA219Util {
 
         }
 
+        boolean readBusVoltage = false;
+        if (cmd.hasOption("bv")) {
+            readBusVoltage = true;
+        }
+
+        boolean readShuntVoltage = false;
+        if (cmd.hasOption("sv")) {
+            readShuntVoltage = true;
+        }
+
         INA219 i219 = new INA219(addr, 0.1, 3.2, INA219.Brng.V16, INA219.Pga.GAIN_8, INA219.Adc.BITS_12,
                 INA219.Adc.SAMPLES_128);
 
-        System.out.printf("Time\tCurrent\n");
+        System.out.printf("Time\tCurrent");
+        if (readBusVoltage) {
+            System.out.printf("\tBus");
+        }
+        if (readShuntVoltage) {
+            System.out.printf("\tShunt");
+        }
+        System.out.printf("\n");
         long start = System.currentTimeMillis();
         do {
             try {
-                System.out.printf("%d\t%f\n", System.currentTimeMillis() - start, i219.getCurrent());
+                System.out.printf("%d\t%f", System.currentTimeMillis() - start, i219.getCurrent());
+                if (readBusVoltage) {
+                    System.out.printf("\t%f", i219.getBusVoltage());
+                }
+                if (readShuntVoltage) {
+                    System.out.printf("\t%f", i219.getShuntVoltage());
+                }
+                System.out.printf("\n");
                 Thread.sleep(100);
             } catch (IOException e) {
                 LOG.error("Exception while reading I2C bus", e);
