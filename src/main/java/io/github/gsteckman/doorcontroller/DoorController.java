@@ -31,8 +31,8 @@ import io.github.gsteckman.rpi_ina219.INA219;
  * This class implements a DoorController utilizing pins 4 and 17 of the Raspberry Pi GPIO connected to an external
  * circuit with a DPDT latching relay and INA219 current monitor. Access to the GPIO are synchronized on the
  * GpioController object so as to avoid concurrent access from multiple threads. Other users of the GpioController
- * instance should take care to prevent concurrent access with this class by also synchronizing on the object
- * or with other suitable mechanisms.
+ * instance should take care to prevent concurrent access with this class by also synchronizing on the object or with
+ * other suitable mechanisms.
  *
  */
 public class DoorController {
@@ -174,7 +174,8 @@ public class DoorController {
         private static final long MAX_ACTUATION_TIME = 50000; // door actuation should complete within 50 seconds based
                                                               // on measurements
         private long startTime = 0; // time at which the thread was started
-        DoorState state; // door state at creation. Should be Opening or Closing.
+        private DoorState state; // door state at creation. Should be Opening or Closing.
+        private boolean actuatorStarted = false; // sets to true when current above threshold is detected
 
         /**
          * Create a new instance.
@@ -184,9 +185,10 @@ public class DoorController {
         }
 
         /**
-         * Monitors the door actuator current and sets the state to OPEN or CLOSED when the current drops below
-         * threshold depending on if the door was opening or closing. Also checks for actuation time exceeding the
-         * maximum in MAX_ACTUATION_TIME and if so reverses door direction.
+         * Monitors the door actuator current for a transition from active (current above threshold) to inactive
+         * (current below threshold). When this falling-edge transition occurs, set the state to OPEN or CLOSED
+         * depending on if the door was opening or closing. Also checks for actuation time exceeding the maximum in
+         * MAX_ACTUATION_TIME and if so sets the state to OPEN or CLOSED.
          */
         public void run() {
             startTime = System.currentTimeMillis();
@@ -198,7 +200,12 @@ public class DoorController {
                 }
                 try {
                     double current = ina219.getCurrent();
-                    if (current < CURRENT_THRESHOLD) {
+
+                    if (current > CURRENT_THRESHOLD) {
+                        actuatorStarted = true;
+                    }
+
+                    if (current < CURRENT_THRESHOLD && actuatorStarted) { // detected falling edge of current
                         // motion stopped
                         if (state == DoorState.OPENING) {
                             setState(DoorState.OPEN);
@@ -207,26 +214,14 @@ public class DoorController {
                         }
                         return;
                     } else {
-                        // check timeout condition. This could indicate a hardware failure
-                        // or door blockage and the direction should be reversed
+                        // check timeout condition.
                         if (System.currentTimeMillis() - startTime > MAX_ACTUATION_TIME) {
                             if (state == DoorState.OPENING) {
-                                // create a new thread to close the door so this thread can end
-                                new Thread(new Runnable() {
-                                    public void run() {
-                                        closeDoor();
-                                    }
-                                }).start();
-                                return;
+                                setState(DoorState.OPEN);
                             } else if (state == DoorState.CLOSING) {
-                                // create a new thread to open the door so this thread can end
-                                new Thread(new Runnable() {
-                                    public void run() {
-                                        openDoor();
-                                    }
-                                }).start();
-                                return;
+                                setState(DoorState.CLOSED);
                             }
+                            return;
                         }
                     }
                 } catch (IOException e) {

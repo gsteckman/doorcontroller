@@ -34,6 +34,7 @@ import com.pi4j.io.gpio.RaspiBcmPin;
 import com.pi4j.wiringpi.GpioUtil;
 
 import io.github.gsteckman.rpi_ina219.INA219;
+import io.github.gsteckman.rpi_rest.RestGpioController;
 import io.github.gsteckman.rpi_rest.SubscriptionManager;
 
 /**
@@ -80,6 +81,10 @@ public class DoorApp extends io.github.gsteckman.rpi_rest.App {
         pin4.setShutdownOptions(true, PinState.LOW);
         GpioPin pin17 = gpio.provisionDigitalOutputPin(RaspiBcmPin.GPIO_17, PinState.LOW);
         pin17.setShutdownOptions(true, PinState.LOW);
+        GpioPin pin22 = gpio.provisionDigitalOutputPin(RaspiBcmPin.GPIO_22, PinState.HIGH);
+        pin22.setShutdownOptions(true, PinState.HIGH);
+        GpioPin pin27 = gpio.provisionDigitalOutputPin(RaspiBcmPin.GPIO_27, PinState.HIGH);
+        pin27.setShutdownOptions(true, PinState.HIGH);
         return gpio;
     }
 
