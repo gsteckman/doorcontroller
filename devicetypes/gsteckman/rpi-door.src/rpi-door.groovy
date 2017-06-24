@@ -22,28 +22,33 @@ metadata {
 	}
 
 	tiles(scale: 2) {
-		standardTile("door", "device.door", width: 3, height: 3, canChangeIcon: true, inactiveLabel: false, decoration: "flat") {
+		standardTile("door", "device.door", width: 6, height: 3, canChangeIcon: true, inactiveLabel: false, decoration: "flat") {
 			state "open", label:'Open', action:"door control.close", icon:"st.doors.garage.garage-open", backgroundColor: "#00a0dc", nextState: "closing"
             state "closed", label:'Closed', action:"door control.open", icon:"st.doors.garage.garage-closed", backgroundColor: "#ffffff", nextState: "opening"
             state "opening", label:'Opening', action:"door control.close", icon:"st.doors.garage.garage-open", backgroundColor: "#a0a0a0", nextState: "closing"
             state "closing", label:'Closing', action:"door control.open", icon:"st.doors.garage.garage-closed", backgroundColor: "#a0a0a0", nextState: "opening"
 		}
       
-        standardTile("refreshTile", "command.refresh", decoration: "ring") {
+      	childDeviceTiles("gpio")
+        standardTile("refreshTile", "command.refresh", width: 3, height: 3, decoration: "ring") {
        	 	state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
     	}
         main("door")
-        details(["door", "refreshTile"])
+        details(["door", "gpio", "refreshTile"])
 	}
 }
 
 def installed(){
 	log.debug "RPi Door Installed"
-    refresh();
+    createChildDevices();
+    refresh(); 
 }
 
 def updated() {
 	log.debug "RPi Door Updated"
+    if (!childDevices) {
+		createChildDevices()
+	}
 }
 
 def subscribe(){
@@ -83,10 +88,18 @@ def parse(String description) {
         def result;
         if(bodyMap.name == "door"){
             result = createEvent(name: "door", value: bodyMap.state)
-        }
+        }else{
+        	//handle as generic GPIO pin child device
+        	def childDevice = childDevices.find{it.deviceNetworkId == "${bodyMap.address}"}
+            log.debug "found child device: " + childDevice
+            if(childDevice.state.activeLow == true){
+            	childDevice.sendEvent(name: "switch", value: bodyMap.state=="HIGH"? "off" : "on")
+            }else{
+               	childDevice.sendEvent(name: "switch", value: bodyMap.state=="HIGH"? "on" : "off")
+            }
+    	}
 
     	log.debug "Parse returned ${result?.descriptionText}"
-
     	return result
     }
 }
@@ -182,4 +195,19 @@ private getHostAddress() {
 // gets the address of the Hub
 private getCallBackAddress() {
     return device.hub.getDataValue("localIP") + ":" + device.hub.getDataValue("localSrvPortTCP")
+}
+
+private void createChildDevices() {
+	log.debug "createChildDevices"
+	state.oldLabel = device.label
+	
+    def device=addChildDevice("RPi GPIO Pin", "27", null,
+                   [completedSetup: true, label: "27 Audio",
+                    isComponent: true, componentName: "GPIO 27", componentLabel: "27 Audio"])
+	device.setActiveLow();
+
+    device=addChildDevice("RPi GPIO Pin", "22", null,
+                   [completedSetup: true, label: "22 Lights",
+                    isComponent: true, componentName: "GPIO 22", componentLabel: "22 Lights"])
+	device.setActiveLow();
 }
